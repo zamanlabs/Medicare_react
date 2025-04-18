@@ -1,0 +1,35 @@
+.chakra-sample-container {
+  margin: 2rem auto;
+  max-width: 800px;
+  
+  // Nested selectors using Sass
+  h1 {
+    &:hover {
+      color: #0066b3;
+    }
+  }
+  
+  // Using Sass variables
+  $spacing: 1rem;
+  
+  // Using mixins
+  @mixin fadeIn {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+  
+  // Animation using Sass
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  // Apply the mixin
+  .chakra-text {
+    @include fadeIn;
+  }
+  
+  // Media queries using Sass
+  @media (max-width: 768px) {
+    padding: $spacing;
+  }
+} 
