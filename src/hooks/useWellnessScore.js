@@ -59,30 +59,101 @@ export const useWellnessScore = () => {
     const { calculateAdherenceScore } = useMedications(); // Get the calculation function
     const [doctorFeedbackScore, setDoctorFeedbackScore] = useState(MOCK_DOCTOR_FEEDBACK_SCORE);
 
-    const [wellnessScore, setWellnessScore] = useState(0);
+    const [wellnessData, setWellnessData] = useState({
+        wellnessScore: 0,
+        componentScores: {
+            symptomScore: {
+                label: 'Symptom Health',
+                value: 0,
+                weight: WEIGHTS.SYMPTOMS,
+                weightedValue: 0,
+                description: 'Based on symptom severity and frequency',
+                factor: 'Fewer & less severe symptoms increase score'
+            },
+            medicationScore: {
+                label: 'Medication Adherence',
+                value: 0,
+                weight: WEIGHTS.MED_ADHERENCE,
+                weightedValue: 0,
+                description: 'Based on taking medications as prescribed',
+                factor: 'Higher adherence increases score'
+            },
+            doctorFeedbackScore: {
+                label: 'Clinical Assessment',
+                value: 0,
+                weight: WEIGHTS.DOCTOR_FEEDBACK,
+                weightedValue: 0, 
+                description: 'Based on healthcare provider evaluation',
+                factor: 'Better clinical reports increase score'
+            }
+        }
+    });
 
     useEffect(() => {
         // Calculate component scores
         const symptomScore = calculateSymptomScore(symptoms);
         const medicationScore = calculateMedicationScore(calculateAdherenceScore);
-        const feedbackScoreNormalized = normalizeDoctorFeedback(doctorFeedbackScore);
+        const doctorFeedbackNormalized = normalizeDoctorFeedback(doctorFeedbackScore);
 
-        // Apply weights
-        const finalScore = (
-            (symptomScore * WEIGHTS.SYMPTOMS) +
-            (medicationScore * WEIGHTS.MED_ADHERENCE) +
-            (feedbackScoreNormalized * WEIGHTS.DOCTOR_FEEDBACK)
-        );
+        // Calculate weighted values
+        const weightedSymptomScore = symptomScore * WEIGHTS.SYMPTOMS;
+        const weightedMedicationScore = medicationScore * WEIGHTS.MED_ADHERENCE;
+        const weightedDoctorScore = doctorFeedbackNormalized * WEIGHTS.DOCTOR_FEEDBACK;
 
-        setWellnessScore(Math.round(finalScore)); // Round to nearest integer
+        // Calculate final score
+        const finalScore = weightedSymptomScore + weightedMedicationScore + weightedDoctorScore;
 
-        // Dependencies: Recalculate when symptoms, adherence calculation method, or feedback changes.
-        // Note: Adherence score itself isn't state here, but the function from context tells us when the underlying data might have changed.
+        // Determine wellness insights
+        let insights = [];
+        
+        // Symptom insights
+        if (symptomScore < 50) {
+            insights.push('Your recent symptoms are significantly impacting your wellness score');
+        }
+        
+        // Medication insights
+        if (medicationScore < 60) {
+            insights.push('Improving medication adherence could boost your score');
+        }
+        
+        // Doctor feedback insights
+        if (doctorFeedbackNormalized < 70) {
+            insights.push('Consider following up on healthcare provider recommendations');
+        }
+        
+        // Update state with all the data
+        setWellnessData({
+            wellnessScore: Math.round(finalScore),
+            componentScores: {
+                symptomScore: {
+                    label: 'Symptom Health',
+                    value: Math.round(symptomScore),
+                    weight: WEIGHTS.SYMPTOMS,
+                    weightedValue: Math.round(weightedSymptomScore),
+                    description: 'Based on symptom severity and frequency',
+                    factor: 'Fewer & less severe symptoms increase score'
+                },
+                medicationScore: {
+                    label: 'Medication Adherence',
+                    value: Math.round(medicationScore),
+                    weight: WEIGHTS.MED_ADHERENCE,
+                    weightedValue: Math.round(weightedMedicationScore),
+                    description: 'Based on taking medications as prescribed',
+                    factor: 'Higher adherence increases score'
+                },
+                doctorFeedbackScore: {
+                    label: 'Clinical Assessment',
+                    value: Math.round(doctorFeedbackNormalized),
+                    weight: WEIGHTS.DOCTOR_FEEDBACK,
+                    weightedValue: Math.round(weightedDoctorScore),
+                    description: 'Based on healthcare provider evaluation',
+                    factor: 'Better clinical reports increase score'
+                }
+            },
+            insights: insights
+        });
+
     }, [symptoms, calculateAdherenceScore, doctorFeedbackScore]);
 
-    // Potential function to update doctor feedback if needed later
-    // const updateDoctorFeedback = (newScore) => setDoctorFeedbackScore(newScore);
-
-    return wellnessScore;
-    // Could also return component scores: return { wellnessScore, symptomScore, medicationScore, feedbackScoreNormalized };
+    return wellnessData;
 }; 

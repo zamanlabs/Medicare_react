@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faPhone, faEnvelope, faLocationDot, faUserDoctor, faStethoscope, faMapLocationDot, faCalendar, faEdit, faTrash, faMapPin
+    faPhone, faEnvelope, faLocationDot, faUserDoctor, faStethoscope, faMapLocationDot, 
+    faCalendar, faEdit, faTrash, faMapPin, faPaperPlane, faClinicMedical, faClock
 } from '@fortawesome/free-solid-svg-icons';
 import {
     Box,
@@ -28,10 +29,36 @@ import {
     FormControl,
     FormLabel,
     Grid,
-    GridItem
+    GridItem,
+    useColorModeValue,
+    InputGroup,
+    InputLeftElement,
+    FormErrorMessage,
 } from '@chakra-ui/react';
 import { Card } from '../components/ui';
 import MapComponent from '../components/MapComponent';
+import { motion } from 'framer-motion';
+
+// Create motion components for animations
+const MotionBox = motion(Box);
+const MotionFlex = motion(Flex);
+const MotionText = motion(Text);
+
+// Animation variants
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.1
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+};
 
 // Placeholder for upcoming appointments data
 const upcomingAppointments = [
@@ -57,6 +84,21 @@ const Contact = () => {
     const toast = useToast();
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [userLocation, setUserLocation] = useState(null);
+
+    // Theme-aware colors
+    const headerGradient = useColorModeValue(
+        'linear(to-r, brand.500, accent.500)',
+        'linear(to-r, brand.400, accent.400)'
+    );
+    const cardBg = useColorModeValue('white', 'gray.800');
+    const cardHoverBg = useColorModeValue('gray.50', 'gray.700');
+    const subtleBg = useColorModeValue('gray.50', 'gray.700');
+    const subtleIconBg = useColorModeValue('white', 'gray.900');
+    const subtleBorderColor = useColorModeValue('gray.200', 'gray.600');
+    const textPrimary = useColorModeValue('gray.700', 'gray.200');
+    const textSecondary = useColorModeValue('gray.600', 'gray.400');
+    const inputBg = useColorModeValue('white', 'gray.800');
+    const accentColor = useColorModeValue('brand.500', 'brand.300');
 
     const handleContactChange = (e) => {
         const { name, value } = e.target;
@@ -139,86 +181,149 @@ const Contact = () => {
     };
 
     return (
-        <Box>
-            <Flex align="center" mb={6}>
-                <Heading as="h2" size="xl" color="gray.800">
+        <Container maxW="container.xl" px={4}>
+            <MotionFlex 
+                align="center" 
+                mb={8} 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+            >
+                <Heading 
+                    as="h1" 
+                    size="xl" 
+                    fontWeight="bold"
+                    bgGradient={headerGradient}
+                    bgClip="text"
+                    letterSpacing="tight"
+                >
                     Contact & Appointments
                 </Heading>
-            </Flex>
+                <Badge 
+                    ml={3} 
+                    colorScheme="blue" 
+                    px={3} 
+                    py={1} 
+                    borderRadius="full" 
+                    fontSize="sm"
+                    fontWeight="medium"
+                    textTransform="capitalize"
+                >
+                    Support
+                </Badge>
+            </MotionFlex>
 
-            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-                {/* Left Column - Contact Form and Location */}
-                <Stack spacing={6}>
+            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={8}>
+                {/* Left Column - Contact Form and Info */}
+                <MotionBox
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                >
+                    <Stack spacing={8}>
                     {/* Contact Form */}
+                        <MotionBox variants={itemVariants}>
                     <Card>
                         <Heading 
-                            as="h3" 
-                            size="md" 
-                            mb={4} 
-                            pb={2} 
-                            borderBottom="1px" 
-                            borderColor="gray.200"
-                            bgGradient="linear(to-r, blue.600, green.600)"
+                                    as="h2" 
+                                    size="lg" 
+                                    mb={6}
+                                    fontWeight="bold"
+                                    bgGradient={headerGradient}
                             bgClip="text"
                         >
                             Get in Touch
                         </Heading>
                         <form onSubmit={handleContactSubmit}>
-                            <VStack spacing={4}>
-                                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4} width="100%">
+                                    <VStack spacing={5}>
+                                        <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={5} width="100%">
                                     <FormControl>
-                                        <FormLabel htmlFor="name" fontSize="sm" fontWeight="medium">Full Name</FormLabel>
+                                                <FormLabel fontWeight="medium">Full Name</FormLabel>
+                                                <InputGroup>
+                                                    <InputLeftElement pointerEvents="none">
+                                                        <Box color={accentColor}>
+                                                            <FontAwesomeIcon icon={faUserDoctor} />
+                                                        </Box>
+                                                    </InputLeftElement>
                                         <Input 
                                             id="name" 
                                             name="name" 
                                             value={contactForm.name} 
                                             onChange={handleContactChange} 
-                                            p={3}
                                             placeholder="Your name" 
                                             required 
-                                            focusBorderColor="blue.500"
+                                                        bg={inputBg}
+                                                        borderColor={subtleBorderColor}
+                                                        _hover={{ borderColor: accentColor }}
+                                                        _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                        transition="all 0.3s"
                                         />
+                                                </InputGroup>
                                     </FormControl>
                                     <FormControl>
-                                        <FormLabel htmlFor="email" fontSize="sm" fontWeight="medium">Email Address</FormLabel>
+                                                <FormLabel fontWeight="medium">Email Address</FormLabel>
+                                                <InputGroup>
+                                                    <InputLeftElement pointerEvents="none">
+                                                        <Box color={accentColor}>
+                                                            <FontAwesomeIcon icon={faEnvelope} />
+                                                        </Box>
+                                                    </InputLeftElement>
                                         <Input 
                                             type="email" 
                                             id="email" 
                                             name="email" 
                                             value={contactForm.email} 
                                             onChange={handleContactChange} 
-                                            p={3}
                                             placeholder="your.email@example.com" 
                                             required 
-                                            focusBorderColor="blue.500"
+                                                        bg={inputBg}
+                                                        borderColor={subtleBorderColor}
+                                                        _hover={{ borderColor: accentColor }}
+                                                        _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                        transition="all 0.3s"
                                         />
+                                                </InputGroup>
                                     </FormControl>
                                 </SimpleGrid>
 
                                 <FormControl>
-                                    <FormLabel htmlFor="phone" fontSize="sm" fontWeight="medium">Phone Number</FormLabel>
+                                            <FormLabel fontWeight="medium">Phone Number</FormLabel>
+                                            <InputGroup>
+                                                <InputLeftElement pointerEvents="none">
+                                                    <Box color={accentColor}>
+                                                        <FontAwesomeIcon icon={faPhone} />
+                                                    </Box>
+                                                </InputLeftElement>
                                     <Input 
                                         type="tel" 
                                         id="phone" 
                                         name="phone" 
                                         value={contactForm.phone} 
                                         onChange={handleContactChange} 
-                                        p={3}
                                         placeholder="(123) 456-7890" 
-                                        focusBorderColor="blue.500"
+                                                    bg={inputBg}
+                                                    borderColor={subtleBorderColor}
+                                                    _hover={{ borderColor: accentColor }}
+                                                    _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                    transition="all 0.3s"
                                     />
+                                            </InputGroup>
                                 </FormControl>
 
                                 <FormControl>
-                                    <FormLabel htmlFor="subject" fontSize="sm" fontWeight="medium">Subject</FormLabel>
+                                            <FormLabel fontWeight="medium">Subject</FormLabel>
                                     <Select 
                                         id="subject" 
                                         name="subject" 
                                         value={contactForm.subject} 
                                         onChange={handleContactChange} 
-                                        p={3}
                                         required 
-                                        focusBorderColor="blue.500"
+                                                bg={inputBg}
+                                                borderColor={subtleBorderColor}
+                                                _hover={{ borderColor: accentColor }}
+                                                _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                transition="all 0.3s"
+                                                icon={<FontAwesomeIcon icon={faEdit} />}
                                     >
                                         <option value="">Select a subject</option>
                                         <option value="general">General Inquiry</option>
@@ -229,28 +334,36 @@ const Contact = () => {
                                 </FormControl>
 
                                 <FormControl>
-                                    <FormLabel htmlFor="message" fontSize="sm" fontWeight="medium">Message</FormLabel>
+                                            <FormLabel fontWeight="medium">Message</FormLabel>
                                     <Textarea 
                                         id="message" 
                                         name="message" 
                                         rows={4} 
                                         value={contactForm.message} 
                                         onChange={handleContactChange} 
-                                        p={3}
                                         placeholder="How can we help you?" 
                                         required 
-                                        focusBorderColor="blue.500"
+                                                bg={inputBg}
+                                                borderColor={subtleBorderColor}
+                                                _hover={{ borderColor: accentColor }}
+                                                _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                transition="all 0.3s"
                                     />
                                 </FormControl>
 
                                 <Flex justify="flex-end" width="100%">
                                     <Button 
                                         type="submit" 
-                                        colorScheme="blue" 
-                                        px={6} 
-                                        py={2}
-                                        _hover={{ bg: 'blue.600' }}
-                                        transition="colors 0.2s"
+                                                colorScheme="brand" 
+                                                px={8}
+                                                py={6}
+                                                borderRadius="full"
+                                                rightIcon={<FontAwesomeIcon icon={faPaperPlane} />}
+                                                _hover={{
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: 'lg'
+                                                }}
+                                                transition="all 0.3s"
                                     >
                                         Send Message
                                     </Button>
@@ -258,240 +371,380 @@ const Contact = () => {
                             </VStack>
                         </form>
                     </Card>
+                        </MotionBox>
 
-                    {/* Location Map */}
-                    <Card>
-                        <Heading as="h3" size="md" mb={4}>
-                            Your Location
+                        {/* Contact Information */}
+                        <MotionBox variants={itemVariants}>
+                            <Card variant="gradient" colorScheme="accent">
+                                <Heading 
+                                    as="h2" 
+                                    size="lg" 
+                                    mb={6}
+                                    fontWeight="bold"
+                                    color={useColorModeValue('gray.800', 'white')}
+                                >
+                                    Contact Information
                         </Heading>
-                        <Text mb={4}>
-                            Allow access to your location to find nearby appointment locations and get directions.
-                        </Text>
-                        <Box mb={4}>
-                            <MapComponent 
-                                onLocationChange={handleLocationChange} 
-                                height="300px"
-                                additionalMarker={selectedLocation}
-                            />
+                                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                                    <VStack align="start" spacing={4}>
+                                        <HStack spacing={4}>
+                                            <Center 
+                                                bg={useColorModeValue('blue.100', 'blue.900')} 
+                                                color={useColorModeValue('blue.600', 'blue.300')}
+                                                p={3} 
+                                                borderRadius="full"
+                                                boxShadow="sm"
+                                            >
+                                                <FontAwesomeIcon icon={faPhone} />
+                                            </Center>
+                                            <Box>
+                                                <Text fontWeight="medium" color={textPrimary}>Phone</Text>
+                                                <Link href="tel:+15551234567" color={accentColor} fontWeight="semibold">
+                                                    (555) 123-4567
+                                                </Link>
+                                            </Box>
+                                        </HStack>
+                                        
+                                        <HStack spacing={4}>
+                                            <Center 
+                                                bg={useColorModeValue('green.100', 'green.900')} 
+                                                color={useColorModeValue('green.600', 'green.300')}
+                                                p={3} 
+                                                borderRadius="full"
+                                                boxShadow="sm"
+                                            >
+                                                <FontAwesomeIcon icon={faEnvelope} />
+                                            </Center>
+                                            <Box>
+                                                <Text fontWeight="medium" color={textPrimary}>Email</Text>
+                                                <Link href="mailto:contact@zentorramedicare.com" color={accentColor} fontWeight="semibold">
+                                                    contact@zentorramedicare.com
+                                                </Link>
+                                            </Box>
+                                        </HStack>
+                                    </VStack>
+                                    
+                                    <VStack align="start" spacing={4}>
+                                        <HStack spacing={4}>
+                                            <Center 
+                                                bg={useColorModeValue('purple.100', 'purple.900')} 
+                                                color={useColorModeValue('purple.600', 'purple.300')}
+                                                p={3} 
+                                                borderRadius="full"
+                                                boxShadow="sm"
+                                            >
+                                                <FontAwesomeIcon icon={faLocationDot} />
+                                            </Center>
+                                            <Box>
+                                                <Text fontWeight="medium" color={textPrimary}>Main Office</Text>
+                                                <Text color={textSecondary}>123 Healthcare Avenue<br />Medical District, CA 90210</Text>
+                                            </Box>
+                                        </HStack>
+                                        
+                                        <HStack spacing={4}>
+                                            <Center 
+                                                bg={useColorModeValue('red.100', 'red.900')} 
+                                                color={useColorModeValue('red.600', 'red.300')}
+                                                p={3} 
+                                                borderRadius="full"
+                                                boxShadow="sm"
+                                            >
+                                                <FontAwesomeIcon icon={faClock} />
+                                            </Center>
+                                            <Box>
+                                                <Text fontWeight="medium" color={textPrimary}>Business Hours</Text>
+                                                <Text color={textSecondary}>Mon-Fri: 8am-6pm<br />Sat: 9am-1pm, Sun: Closed</Text>
                         </Box>
-                        <Text fontSize="xs" color="gray.500">
-                            Your location is used only to provide relevant appointment locations and directions.
-                        </Text>
+                                        </HStack>
+                                    </VStack>
+                                </SimpleGrid>
                     </Card>
+                        </MotionBox>
                 </Stack>
+                </MotionBox>
 
-                {/* Right Column - Appointment Request Form and Upcoming Appointments */}
-                <Stack spacing={6}>
+                {/* Right Column - Appointment Booking and Map */}
+                <MotionBox
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                >
+                    <Stack spacing={8}>
                     {/* Appointment Request Form */}
+                        <MotionBox variants={itemVariants}>
                     <Card>
                         <Heading 
-                            as="h3" 
-                            size="md" 
-                            mb={4} 
-                            pb={2} 
-                            borderBottom="1px" 
-                            borderColor="gray.200"
-                            bgGradient="linear(to-r, blue.600, green.600)"
+                                    as="h2" 
+                                    size="lg" 
+                                    mb={6}
+                                    fontWeight="bold"
+                                    bgGradient={headerGradient}
                             bgClip="text"
                         >
-                            Schedule an Appointment
+                                    Request an Appointment
                         </Heading>
-                        <Box bg="gray.50" p={4} borderRadius="md" mb={6}>
-                            <Text fontWeight="medium" mb={3}>Request New Appointment</Text>
                             <form onSubmit={handleAppointmentSubmit}>
-                                <VStack spacing={4}>
-                                    <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4} width="100%">
+                                    <VStack spacing={5}>
                                         <FormControl>
-                                            <FormLabel htmlFor="appointment-type" fontSize="sm" fontWeight="medium">Appointment Type</FormLabel>
+                                            <FormLabel fontWeight="medium">Appointment Type</FormLabel>
                                             <Select 
-                                                id="appointment-type" 
+                                                id="type" 
                                                 name="type" 
                                                 value={appointmentForm.type} 
                                                 onChange={handleAppointmentChange} 
-                                                p={2}
                                                 required 
-                                                focusBorderColor="blue.500"
+                                                bg={inputBg}
+                                                borderColor={subtleBorderColor}
+                                                _hover={{ borderColor: accentColor }}
+                                                _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                transition="all 0.3s"
+                                                icon={<FontAwesomeIcon icon={faStethoscope} />}
                                             >
-                                                <option value="">Select type</option>
-                                                <option value="consultation">General Consultation</option>
-                                                <option value="checkup">Annual Checkup</option>
+                                                <option value="">Select appointment type</option>
+                                                <option value="checkup">Regular Checkup</option>
                                                 <option value="followup">Follow-up Visit</option>
-                                                <option value="specialist">Specialist Referral</option>
+                                                <option value="consultation">Consultation</option>
+                                                <option value="urgent">Urgent Care</option>
+                                                <option value="telehealth">Telehealth Visit</option>
                                             </Select>
                                         </FormControl>
+
                                         <FormControl>
-                                            <FormLabel htmlFor="appointment-doctor" fontSize="sm" fontWeight="medium">Preferred Doctor</FormLabel>
+                                            <FormLabel fontWeight="medium">Preferred Doctor</FormLabel>
                                             <Select 
-                                                id="appointment-doctor" 
+                                                id="doctor" 
                                                 name="doctor" 
                                                 value={appointmentForm.doctor} 
                                                 onChange={handleAppointmentChange} 
-                                                p={2}
-                                                required 
-                                                focusBorderColor="blue.500"
+                                                bg={inputBg}
+                                                borderColor={subtleBorderColor}
+                                                _hover={{ borderColor: accentColor }}
+                                                _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                transition="all 0.3s"
+                                                icon={<FontAwesomeIcon icon={faUserDoctor} />}
                                             >
-                                                <option value="">Select doctor</option>
+                                                <option value="">No preference</option>
                                                 <option value="dr-johnson">Dr. Sarah Johnson</option>
                                                 <option value="dr-chen">Dr. Michael Chen</option>
-                                                <option value="dr-patel">Dr. Anita Patel</option>
-                                                <option value="any">No preference</option>
+                                                <option value="dr-patel">Dr. Priya Patel</option>
+                                                <option value="dr-wong">Dr. David Wong</option>
                                             </Select>
                                         </FormControl>
+
+                                        <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={5} width="100%">
                                         <FormControl>
-                                            <FormLabel htmlFor="appointment-date" fontSize="sm" fontWeight="medium">Preferred Date</FormLabel>
+                                                <FormLabel fontWeight="medium">Preferred Date</FormLabel>
                                             <Input 
                                                 type="date" 
-                                                id="appointment-date" 
+                                                    id="date" 
                                                 name="date" 
                                                 value={appointmentForm.date} 
                                                 onChange={handleAppointmentChange} 
-                                                p={2}
                                                 required 
-                                                focusBorderColor="blue.500"
+                                                    bg={inputBg}
+                                                    borderColor={subtleBorderColor}
+                                                    _hover={{ borderColor: accentColor }}
+                                                    _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                    transition="all 0.3s"
                                             />
                                         </FormControl>
                                         <FormControl>
-                                            <FormLabel htmlFor="appointment-time" fontSize="sm" fontWeight="medium">Preferred Time</FormLabel>
-                                            <Select 
-                                                id="appointment-time" 
+                                                <FormLabel fontWeight="medium">Preferred Time</FormLabel>
+                                                <Input 
+                                                    type="time" 
+                                                    id="time" 
                                                 name="time" 
                                                 value={appointmentForm.time} 
                                                 onChange={handleAppointmentChange} 
-                                                p={2}
                                                 required 
-                                                focusBorderColor="blue.500"
-                                            >
-                                                <option value="">Select time</option>
-                                                <option value="morning">Morning (9AM - 12PM)</option>
-                                                <option value="afternoon">Afternoon (1PM - 5PM)</option>
-                                                <option value="any">Any available time</option>
-                                            </Select>
+                                                    bg={inputBg}
+                                                    borderColor={subtleBorderColor}
+                                                    _hover={{ borderColor: accentColor }}
+                                                    _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                    transition="all 0.3s"
+                                                />
                                         </FormControl>
                                     </SimpleGrid>
 
                                     <FormControl>
-                                        <FormLabel htmlFor="appointment-notes" fontSize="sm" fontWeight="medium">Reason for Visit</FormLabel>
+                                            <FormLabel fontWeight="medium">Additional Notes</FormLabel>
                                         <Textarea 
-                                            id="appointment-notes" 
+                                                id="notes" 
                                             name="notes" 
-                                            rows={2} 
+                                                rows={3} 
                                             value={appointmentForm.notes} 
                                             onChange={handleAppointmentChange} 
-                                            p={2}
-                                            placeholder="Briefly describe your reason for the appointment" 
-                                            required 
-                                            focusBorderColor="blue.500"
+                                                placeholder="Please share any specific concerns or requirements..." 
+                                                bg={inputBg}
+                                                borderColor={subtleBorderColor}
+                                                _hover={{ borderColor: accentColor }}
+                                                _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
+                                                transition="all 0.3s"
                                         />
                                     </FormControl>
 
                                     <Flex justify="flex-end" width="100%">
                                         <Button 
                                             type="submit" 
-                                            colorScheme="blue" 
-                                            px={4} 
-                                            py={2}
-                                            _hover={{ bg: 'blue.600' }}
-                                            transition="colors 0.2s"
+                                                colorScheme="brand" 
+                                                px={8}
+                                                py={6}
+                                                borderRadius="full"
+                                                rightIcon={<FontAwesomeIcon icon={faCalendar} />}
+                                                _hover={{
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: 'lg'
+                                                }}
+                                                transition="all 0.3s"
                                         >
                                             Request Appointment
                                         </Button>
                                     </Flex>
                                 </VStack>
                             </form>
+                            </Card>
+                        </MotionBox>
+
+                        {/* Map */}
+                        <MotionBox variants={itemVariants} height="400px">
+                            <Card height="100%">
+                                <Heading 
+                                    as="h2" 
+                                    size="lg" 
+                                    mb={4}
+                                    fontWeight="bold"
+                                    bgGradient={headerGradient}
+                                    bgClip="text"
+                                >
+                                    Find Our Locations
+                                </Heading>
+                                <Box bg={subtleBg} borderRadius="md" overflow="hidden" h="100%">
+                                    <MapComponent
+                                        userLocation={userLocation} 
+                                        onLocationChange={handleLocationChange}
+                                        markers={[
+                                            { 
+                                                latitude: 37.7749, 
+                                                longitude: -122.4194, 
+                                                name: "Zentorra Medicare Main Clinic",
+                                                iconType: "hospital"
+                                            },
+                                            { 
+                                                latitude: 37.7850, 
+                                                longitude: -122.4000, 
+                                                name: "Zentorra Medicare Downtown Branch",
+                                                iconType: "clinic" 
+                                            }
+                                        ]}
+                                    />
                         </Box>
+                                
+                                <HStack mt={4} spacing={4} justifyContent="flex-end">
+                                    <Button
+                                        size="sm"
+                                        leftIcon={<FontAwesomeIcon icon={faMapPin} />}
+                                        colorScheme="blue"
+                                        variant="outline"
+                                        onClick={() => handleLocationChange({ latitude: 37.7749, longitude: -122.4194 })}
+                                    >
+                                        Set My Location
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        leftIcon={<FontAwesomeIcon icon={faClinicMedical} />}
+                                        colorScheme="green"
+                                        variant="outline"
+                                        onClick={() => handleLocationChange({ latitude: 37.7749, longitude: -122.4194 })}
+                                    >
+                                        Show All Clinics
+                                    </Button>
+                                </HStack>
                     </Card>
+                        </MotionBox>
 
                     {/* Upcoming Appointments */}
+                        {upcomingAppointments.length > 0 && (
+                            <MotionBox variants={itemVariants}>
                     <Card>
-                        <Heading as="h3" size="md" mb={4}>
+                                    <Heading 
+                                        as="h2" 
+                                        size="lg" 
+                                        mb={6}
+                                        fontWeight="bold"
+                                        bgGradient={headerGradient}
+                                        bgClip="text"
+                                    >
                             Your Upcoming Appointments
                         </Heading>
-                        
-                        {upcomingAppointments.length === 0 ? (
-                            <Center py={10}>
-                                <VStack spacing={3}>
-                                    <Box fontSize="xl" color="gray.400">
-                                        <FontAwesomeIcon icon={faCalendar} />
-                                    </Box>
-                                    <Text color="gray.500">No upcoming appointments</Text>
-                                    <Text fontSize="sm" color="gray.400">
-                                        Use the form above to schedule an appointment
-                                    </Text>
-                                </VStack>
-                            </Center>
-                        ) : (
                             <VStack spacing={4} align="stretch">
-                                {upcomingAppointments.map((appointment, index) => (
-                                    <Box 
-                                        key={index} 
+                                        {upcomingAppointments.map((appointment) => (
+                                            <Flex 
+                                                key={appointment.id} 
                                         p={4} 
-                                        borderRadius="md" 
+                                                bg={useColorModeValue(appointment.bgColor, 'gray.700')}
+                                                borderRadius="lg"
+                                                boxShadow="sm"
+                                                transition="all 0.3s"
+                                                _hover={{
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: 'md'
+                                                }}
+                                            >
+                                                <Center 
+                                                    bg={useColorModeValue('white', 'gray.900')}
+                                                    color={appointment.iconColor} 
+                                                    p={3} 
+                                                    borderRadius="full" 
+                                                    mr={4}
                                         boxShadow="sm" 
-                                        bg={index === 0 ? 'blue.50' : 'white'}
-                                        borderWidth="1px"
-                                        borderColor={index === 0 ? 'blue.200' : 'gray.200'}
-                                    >
-                                        <Flex justify="space-between" align="flex-start">
-                                            <VStack align="flex-start" spacing={1}>
-                                                <Heading as="h4" size="sm" fontWeight="semibold">
-                                                    {appointment.type}
-                                                </Heading>
-                                                <Text fontSize="sm">
-                                                    <b>Date:</b> {appointment.date}
-                                                </Text>
-                                                <Text fontSize="sm">
-                                                    <b>Time:</b> {appointment.time}
-                                                </Text>
-                                                <Text fontSize="sm">
-                                                    <b>Doctor:</b> {appointment.doctor}
-                                                </Text>
-                                                <Flex align="center" mt={1}>
-                                                    <Box color="gray.500" mr={1}>
-                                                        <FontAwesomeIcon icon={faLocationDot} size="sm" />
+                                                >
+                                                    <FontAwesomeIcon icon={appointment.icon} />
+                                                </Center>
+                                                <Box flex="1">
+                                                    <Flex justifyContent="space-between" alignItems="flex-start">
+                                                        <Box>
+                                                            <Text fontWeight="bold">{appointment.doctor}</Text>
+                                                            <Text fontSize="sm" color={textSecondary}>{appointment.type}</Text>
                                                     </Box>
-                                                    <Text fontSize="sm" color="gray.600">
-                                                        {appointment.location}
-                                                    </Text>
-                                                </Flex>
-                                            </VStack>
                                             <HStack>
-                                                <IconButton
-                                                    aria-label="Show on map"
-                                                    icon={<FontAwesomeIcon icon={faMapPin} />}
-                                                    size="sm"
-                                                    colorScheme="blue"
-                                                    variant="outline"
-                                                    onClick={() => handleSelectAppointmentLocation(appointment)}
-                                                />
                                                 <IconButton
                                                     aria-label="Edit appointment"
                                                     icon={<FontAwesomeIcon icon={faEdit} />}
                                                     size="sm"
+                                                                variant="ghost"
                                                     colorScheme="blue"
-                                                    variant="outline"
                                                 />
                                                 <IconButton
                                                     aria-label="Cancel appointment"
                                                     icon={<FontAwesomeIcon icon={faTrash} />}
                                                     size="sm"
+                                                                variant="ghost"
                                                     colorScheme="red"
-                                                    variant="outline"
                                                 />
                                             </HStack>
                                         </Flex>
-                                        {index === 0 && (
-                                            <Badge mt={3} colorScheme="blue">
-                                                Upcoming
-                                            </Badge>
-                                        )}
+                                                    <Divider my={2} borderColor={subtleBorderColor} />
+                                                    <Flex justifyContent="space-between" alignItems="center">
+                                                        <Text fontSize="sm" fontWeight="medium">
+                                                            <FontAwesomeIcon icon={faCalendar} style={{ marginRight: '0.5rem' }} />
+                                                            {appointment.date}
+                                                        </Text>
+                                                        <Text fontSize="sm" fontWeight="medium">
+                                                            <FontAwesomeIcon icon={faClock} style={{ marginRight: '0.5rem' }} />
+                                                            {appointment.time}
+                                                        </Text>
+                                                    </Flex>
                                     </Box>
+                                            </Flex>
                                 ))}
                             </VStack>
+                                </Card>
+                            </MotionBox>
                         )}
-                    </Card>
                 </Stack>
+                </MotionBox>
             </SimpleGrid>
-        </Box>
+        </Container>
     );
 };
 

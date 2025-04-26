@@ -62,6 +62,15 @@ export const MedicationProvider = ({ children }) => {
         );
     };
 
+    // Mark medication as taken
+    const markTaken = (medId) => {
+        setMedications(prevMeds =>
+            prevMeds.map(med =>
+                med.id === medId ? { ...med, isTaken: true } : med
+            )
+        );
+    };
+
     // Calculate Adherence Score (0-100)
     const calculateAdherenceScore = () => {
         if (medications.length === 0) return 100; // Perfect score if no meds prescribed
@@ -75,7 +84,8 @@ export const MedicationProvider = ({ children }) => {
         updateMedication,
         removeMedication,
         toggleMedicationTaken,
-        calculateAdherenceScore, // Provide calculation function
+        markTaken,
+        calculateAdherenceScore,
     };
 
     return (

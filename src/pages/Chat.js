@@ -7,9 +7,7 @@ import {
     faCircleExclamation, 
     faNotesMedical,
     faPhone,
-    faExclamationTriangle,
-    faMicrophone,
-    faMicrophoneSlash
+    faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import { keyframes } from '@emotion/react';
 import {
@@ -43,11 +41,15 @@ import {
     Tooltip,
     Badge,
     SimpleGrid,
+    useColorModeValue,
+    Container,
 } from '@chakra-ui/react';
+import { motion } from 'framer-motion';
 import { Card } from '../components/ui';
 import geminiService, { isApiKeyConfigured } from '../services/geminiService';
 import symptomAnalyzerService from '../services/symptomAnalyzerService';
-import useSpeechRecognition from '../hooks/useSpeechRecognition';
+import { formatAIResponse, containsCode, enhanceCodeBlocks } from '../utils/responseFormatter';
+import '../styles/aiResponseStyles.css';
 
 // Initial conversation messages
 const initialMessages = [
@@ -66,12 +68,50 @@ const commonQuestions = [
     'What are the symptoms of seasonal allergies?'
 ];
 
-// Pulse animation for the recording indicator
+// Message fade-in animation
+const messageAnimation = keyframes`
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+`;
+
+// Typing indicator animation
+const typingAnimation = keyframes`
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+`;
+
+// Pulse animation for emergency mode
 const pulseAnimation = keyframes`
   0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 82, 82, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }
 `;
+
+// Motion components
+const MotionBox = motion(Box);
+const MotionFlex = motion(Flex);
+const MotionVStack = motion(VStack);
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { 
+    opacity: 1,
+    transition: { 
+      staggerChildren: 0.07,
+      delayChildren: 0.2
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { type: 'spring', stiffness: 100 }
+  }
+};
 
 const Chat = () => {
     const [messages, setMessages] = useState(initialMessages);
@@ -93,38 +133,15 @@ const Chat = () => {
     const [isEmergencyMode, setIsEmergencyMode] = useState(false);
     const [isEmergencyCalling, setIsEmergencyCalling] = useState(false);
     
-    // Use our custom hook for speech recognition
-    const [interimTranscript, setInterimTranscript] = useState('');
-    const {
-        isListening,
-        transcript,
-        interimTranscript: hookInterimTranscript,
-        startListening,
-        stopListening,
-        isSupported: isSpeechSupported,
-        error: speechError
-    } = useSpeechRecognition({
-        onResult: (result, resultType) => {
-            if (resultType === 'interim') {
-                setInterimTranscript(result);
-            } else {
-                setNewMessage(result);
-                setInterimTranscript('');
-            }
-        },
-        onError: (errorMessage, errorType) => {
-            // Only show toast for significant errors
-            if (errorType !== 'no-speech') {
-                toast({
-                    title: "Speech Recognition Error",
-                    description: errorMessage,
-                    status: "error",
-                    duration: 3000,
-                    isClosable: true,
-                });
-            }
-        }
-    });
+    // Theme-aware colors
+    const bgColor = useColorModeValue('white', 'gray.800');
+    const secondaryBgColor = useColorModeValue('gray.50', 'gray.900');
+    const textColor = useColorModeValue('gray.800', 'white');
+    const dimmedTextColor = useColorModeValue('gray.600', 'gray.400');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const highlightColor = useColorModeValue('blue.50', 'blue.900');
+    const headerBgColor = useColorModeValue('blue.500', 'blue.600');
+    const emergencyHeaderBgColor = useColorModeValue('red.500', 'red.600');
     
     // Auto-scroll to bottom of messages
     useEffect(() => {
@@ -135,32 +152,9 @@ const Chat = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
     
-    // Toggle speech recognition
-    const toggleListening = () => {
-        if (!isSpeechSupported) {
-            toast({
-                title: "Speech Recognition Not Supported",
-                description: "Your browser doesn't support speech recognition. Please try using Chrome, Edge, or Safari.",
-                status: "warning",
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
-        
-        if (isListening) {
-            stopListening();
-        } else {
-            startListening();
-        }
-    };
-    
     const initiateEmergencyCall = () => {
         // Set emergency calling state
         setIsEmergencyCalling(true);
-        
-        // In a real app, this would connect to a native phone API
-        // For this demo, we'll simulate the emergency call
         
         // Add emergency message
         const emergencyMessage = {
@@ -199,11 +193,6 @@ const Chat = () => {
     
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
-        
-        // Stop listening if active
-        if (isListening) {
-            stopListening();
-        }
         
         // Check if API key is configured
         if (!apiKeyStatus.isConfigured) {
@@ -244,13 +233,21 @@ const Chat = () => {
             const symptomResponse = symptomAnalyzerService.processSymptomMessage(userMessage.text);
             
             let botResponse;
+            let responseText;
             
             if (symptomResponse && symptomResponse.isSymptomQuestion) {
                 // This is a symptom question, use the symptom analyzer response
+                responseText = symptomResponse.response;
+                
+                // Format the symptom response
+                const formattedResponse = formatAIResponse(responseText);
+                
                 botResponse = {
                     id: Date.now() + 2,
                     sender: 'bot',
-                    text: symptomResponse.response,
+                    text: responseText,
+                    formattedText: formattedResponse,
+                    hasCode: containsCode(responseText),
                     isSymptomAnalysis: true,
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
@@ -274,12 +271,17 @@ const Chat = () => {
                 }
             } else {
                 // Not a symptom question, use normal AI response
-                const aiResponse = await geminiService.generateHealthResponse([...messages, userMessage]);
+                responseText = await geminiService.generateHealthResponse([...messages, userMessage]);
+                
+                // Format the AI response for better display
+                const formattedResponse = formatAIResponse(responseText);
                 
                 botResponse = {
                     id: Date.now() + 2,
                     sender: 'bot',
-                    text: aiResponse,
+                    text: responseText,
+                    formattedText: formattedResponse,
+                    hasCode: containsCode(responseText),
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
                 
@@ -372,361 +374,499 @@ const Chat = () => {
     };
     
     return (
-        <>
-            <Flex align="center" mb={6}>
-                <Heading as="h2" size="xl" color="gray.800">
-                    AI Health Assistant
-                </Heading>
-            </Flex>
-            
-            {apiKeyStatus.showWarning && (
-                <Alert status="warning" mb={6} borderRadius="md">
-                    <AlertIcon as={FontAwesomeIcon} icon={faCircleExclamation} />
-                    <Box flex="1">
-                        <AlertTitle>Gemini API Key Required</AlertTitle>
-                        <AlertDescription>
-                            To use the AI Health Assistant, you need to configure your Gemini API key.
-                        </AlertDescription>
-                    </Box>
-                    <Button colorScheme="blue" size="sm" onClick={onOpen}>
-                        Configure API Key
-                    </Button>
-                </Alert>
-            )}
-            
-            {isEmergencyMode && (
-                <Alert status="error" mb={6} borderRadius="md">
-                    <AlertIcon as={FontAwesomeIcon} icon={faExclamationTriangle} />
-                    <Box flex="1">
-                        <AlertTitle>Emergency Mode Activated</AlertTitle>
-                        <AlertDescription>
-                            Emergency services (999) in Bangladesh {isEmergencyCalling ? 'have been contacted' : 'will be contacted'} based on the symptoms described.
-                        </AlertDescription>
-                    </Box>
-                    <Button colorScheme="red" size="sm" leftIcon={<FontAwesomeIcon icon={faPhone} />}>
-                        {isEmergencyCalling ? 'Connected' : 'Calling 999'}
-                    </Button>
-                </Alert>
-            )}
-            
-            <Card p={0} mb={6} boxShadow="md" borderRadius="lg" overflow="hidden">
-                {/* Chat header */}
-                <Box bg={isEmergencyMode ? "red.500" : "blue.500"} p={4} color="white">
-                    <Flex justifyContent="space-between" alignItems="center">
-                        <Box>
-                            <Heading as="h3" size="md">ZenHealth Assistant</Heading>
-                            <Text fontSize="sm">Ask questions about health topics, medications, or using the app</Text>
-                        </Box>
-                        
-                        <HStack spacing={2}>
-                            {isEmergencyMode && (
-                                <Badge 
-                                    colorScheme="red" 
-                                    p={2} 
-                                    borderRadius="full"
-                                >
-                                    <HStack spacing={1}>
-                                        <FontAwesomeIcon icon={faExclamationTriangle} />
-                                        <Text>Emergency Mode</Text>
-                                    </HStack>
-                                </Badge>
-                            )}
-                        
-                            {isSymptomMode && !isEmergencyMode && (
-                                <Badge 
-                                    colorScheme="purple" 
-                                    p={2} 
-                                    borderRadius="full"
-                                >
-                                    <HStack spacing={1}>
-                                        <FontAwesomeIcon icon={faNotesMedical} />
-                                        <Text>Symptom Mode</Text>
-                                    </HStack>
-                                </Badge>
-                            )}
-                            
-                            {isSpeechSupported && (
-                                <Tooltip 
-                                    label={isListening ? "Voice recognition active" : "Voice typing available"}
-                                    placement="top"
-                                    hasArrow
-                                >
-                                    <Badge 
-                                        colorScheme={isListening ? "red" : "green"} 
-                                        p={2} 
-                                        borderRadius="full"
-                                        sx={isListening ? { 
-                                            animation: `${pulseAnimation} 2s infinite`,
-                                            transformOrigin: 'center'
-                                        } : {}}
-                                    >
-                                        {isListening ? "Listening..." : "Voice Enabled"}
-                                    </Badge>
-                                </Tooltip>
-                            )}
-                        </HStack>
-                    </Flex>
-                </Box>
-                
-                {/* Messages container */}
-                <Box 
-                    p={4} 
-                    height="400px" 
-                    overflowY="auto" 
-                    bg="gray.50"
+        <Container maxW="container.xl" py={8}>
+            <MotionBox
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+            >
+                <MotionFlex 
+                    align="center" 
+                    mb={6}
+                    variants={itemVariants}
                 >
-                    <VStack spacing={4} align="stretch">
-                        {messages.map(message => (
-                            <Flex
-                                key={message.id}
-                                justify={message.sender === 'user' ? 'flex-end' : 'flex-start'}
-                            >
-                                {/* Typing indicator or regular message */}
-                                {message.isTyping ? (
-                                    <Flex
-                                        maxWidth="80%"
-                                        bg="white"
-                                        p={3}
-                                        borderRadius="lg"
-                                        boxShadow="sm"
-                                        direction="column"
-                                    >
-                                        <HStack spacing={2} mb={1}>
-                                            <Avatar
-                                                size="xs"
-                                                bg="green.100"
-                                                icon={
-                                                    <FontAwesomeIcon 
-                                                        icon={faRobot} 
-                                                        color="green.500"
-                                                    />
-                                                }
-                                            />
-                                            <Text fontWeight="bold" fontSize="sm">
-                                                ZenHealth Assistant
-                                            </Text>
-                                        </HStack>
-                                        <Flex align="center">
-                                            <Spinner size="sm" mr={2} color="blue.400" />
-                                            <Text color="gray.500">Thinking...</Text>
-                                        </Flex>
-                                    </Flex>
-                                ) : (
-                                    <Flex
-                                        maxWidth="80%"
-                                        bg={message.sender === 'user' ? 'blue.500' : 
-                                           message.isEmergency ? 'red.50' :
-                                           message.isSymptomAnalysis ? 'purple.50' : 
-                                           message.isError ? 'red.50' : 'white'}
-                                        color={message.sender === 'user' ? 'white' : 
-                                              message.isEmergency ? 'red.800' :
-                                              message.isError ? 'red.800' : 'gray.800'}
-                                        p={3}
-                                        borderRadius="lg"
-                                        boxShadow="sm"
-                                        direction="column"
-                                        borderColor={message.isEmergency ? 'red.300' :
-                                                    message.isSymptomAnalysis ? 'purple.200' : 'transparent'}
-                                        borderWidth={message.isEmergency || message.isSymptomAnalysis ? '1px' : '0'}
-                                    >
-                                        <HStack spacing={2} mb={1}>
-                                            <Avatar
-                                                size="xs"
-                                                bg={message.sender === 'user' ? 'blue.300' : 
-                                                   message.isEmergency ? 'red.100' :
-                                                   message.isSymptomAnalysis ? 'purple.100' : 
-                                                   message.isError ? 'red.100' : 'green.100'}
-                                                icon={
-                                                    <FontAwesomeIcon 
-                                                        icon={message.sender === 'user' ? faUser : 
-                                                             message.isEmergency ? faExclamationTriangle :
-                                                             message.isSymptomAnalysis ? faNotesMedical : faRobot} 
-                                                        color={message.sender === 'user' ? 'white' : 
-                                                              message.isEmergency ? 'red.500' :
-                                                              message.isSymptomAnalysis ? 'purple.500' : 
-                                                              message.isError ? 'red.500' : 'green.500'}
-                                                    />
-                                                }
-                                            />
-                                            <Text fontWeight="bold" fontSize="sm">
-                                                {message.sender === 'user' ? 'You' : 'ZenHealth Assistant'}
-                                                {message.isEmergency && (
-                                                    <Badge ml={1} colorScheme="red">Emergency Alert</Badge>
-                                                )}
-                                                {message.isSymptomAnalysis && !message.isEmergency && (
-                                                    <Badge ml={1} colorScheme="purple">Symptom Analysis</Badge>
-                                                )}
-                                            </Text>
-                                        </HStack>
-                                        <Text whiteSpace="pre-wrap">{message.text}</Text>
-                                        <Text 
-                                            alignSelf="flex-end" 
-                                            fontSize="xs" 
-                                            color={message.sender === 'user' ? 'blue.100' : 
-                                                  message.isEmergency ? 'red.300' :
-                                                  message.isSymptomAnalysis ? 'purple.300' : 
-                                                  message.isError ? 'red.300' : 'gray.500'}
-                                            mt={1}
-                                        >
-                                            {message.timestamp}
-                                        </Text>
-                                    </Flex>
-                                )}
-                            </Flex>
-                        ))}
-                        <div ref={messagesEndRef} />
-                    </VStack>
-                </Box>
+                    <Heading 
+                        as="h2" 
+                        size="xl" 
+                        color={textColor}
+                        bgGradient={useColorModeValue(
+                            "linear(to-r, brand.500, accent.500)", 
+                            "linear(to-r, brand.400, accent.400)"
+                        )}
+                        bgClip="text"
+                        fontWeight="bold"
+                    >
+                        AI Health Assistant
+                    </Heading>
+                </MotionFlex>
                 
-                {/* Input area */}
-                <Box p={4} bg="white" borderTop="1px" borderColor="gray.200">
-                    {/* Transcript display when listening */}
-                    {isListening && interimTranscript && (
-                        <Box 
-                            mb={2} 
-                            p={2} 
-                            bg="blue.50" 
-                            borderRadius="md" 
-                            fontSize="sm"
-                            color="blue.700"
-                        >
-                            <Text fontStyle="italic">"{interimTranscript}"</Text>
-                        </Box>
-                    )}
-                    
-                    {/* Symptom examples */}
-                    {messages.length <= 5 && !isEmergencyMode && (
-                        <Box mb={3}>
-                            <Text fontSize="xs" color="purple.600" mb={1} fontWeight="medium">
-                                <FontAwesomeIcon icon={faNotesMedical} /> Try asking about symptoms:
-                            </Text>
-                            <HStack spacing={2} mt={1} flexWrap="wrap">
-                                <Badge 
-                                    colorScheme="purple" 
-                                    variant="outline" 
-                                    py={1} px={2} 
-                                    cursor="pointer"
-                                    _hover={{ bg: 'purple.50' }}
-                                    onClick={() => handleSymptomQuestion("I've been having severe headaches and dizziness for 3 days")}
-                                >
-                                    I have headaches and dizziness
-                                </Badge>
-                                <Badge 
-                                    colorScheme="purple" 
-                                    variant="outline" 
-                                    py={1} px={2} 
-                                    cursor="pointer"
-                                    _hover={{ bg: 'purple.50' }}
-                                    onClick={() => handleSymptomQuestion("What might cause a persistent cough and fever?")}
-                                >
-                                    What causes cough and fever?
-                                </Badge>
-                                <Badge 
-                                    colorScheme="red" 
-                                    variant="outline" 
-                                    py={1} px={2} 
-                                    cursor="pointer"
-                                    _hover={{ bg: 'red.50' }}
-                                    onClick={() => handleSymptomQuestion("I'm having severe chest pain and shortness of breath")}
-                                >
-                                    Chest pain and shortness of breath
-                                </Badge>
-                            </HStack>
-                        </Box>
-                    )}
-                    
-                    {isEmergencyMode && (
-                        <Alert status="error" mb={3} borderRadius="md" fontSize="sm">
-                            <AlertIcon as={FontAwesomeIcon} icon={faPhone} />
-                            <Box>
-                                <AlertTitle fontSize="sm">Emergency Services Active</AlertTitle>
-                                <AlertDescription fontSize="xs">
-                                    Emergency services (999) have been contacted. Please provide your location and stay on the line.
+                {apiKeyStatus.showWarning && (
+                    <MotionBox variants={itemVariants}>
+                        <Alert status="warning" mb={6} borderRadius="xl" shadow="md">
+                            <AlertIcon as={FontAwesomeIcon} icon={faCircleExclamation} />
+                            <Box flex="1">
+                                <AlertTitle>Gemini API Key Required</AlertTitle>
+                                <AlertDescription>
+                                    To use the AI Health Assistant, you need to configure your Gemini API key.
                                 </AlertDescription>
                             </Box>
+                            <Button colorScheme="blue" size="sm" onClick={onOpen} borderRadius="lg">
+                                Configure API Key
+                            </Button>
                         </Alert>
-                    )}
-                    
-                    <Flex mt={3}>
-                        <Input
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            placeholder={isEmergencyMode ? "Describe your location..." : "Type your message..."}
-                            mr={2}
-                            flex="1"
-                            focusBorderColor={isEmergencyMode ? "red.400" : 
-                                             isSymptomMode ? "purple.400" : "blue.400"}
-                            disabled={isLoading}
-                        />
-                        
-                        {isSpeechSupported && !isEmergencyMode && (
-                            <Tooltip label={isListening ? "Stop listening" : "Speak your message"}>
-                                <IconButton
-                                    aria-label={isListening ? "Stop listening" : "Start voice input"}
-                                    icon={<FontAwesomeIcon icon={isListening ? faMicrophoneSlash : faMicrophone} />}
-                                    colorScheme={isListening ? "red" : "blue"}
-                                    variant={isListening ? "solid" : "outline"}
-                                    onClick={toggleListening}
-                                    isDisabled={isLoading}
-                                    mr={2}
-                                />
-                            </Tooltip>
-                        )}
-                        
-                        <Button
-                            colorScheme={isEmergencyMode ? "red" : 
-                                       isSymptomMode ? "purple" : "blue"}
-                            onClick={handleSendMessage}
-                            leftIcon={<FontAwesomeIcon icon={isEmergencyMode ? faPhone : 
-                                                          isSymptomMode ? faNotesMedical : faPaperPlane} />}
-                            isLoading={isLoading}
-                            loadingText="Sending"
-                        >
-                            {isEmergencyMode ? "Send Location" : "Send"}
-                        </Button>
-                    </Flex>
-                    
-                    {/* Bottom disclaimer */}
-                    <Text fontSize="xs" color="gray.500" mt={3} textAlign="center">
-                        {isEmergencyMode ? 
-                            "This AI assistant has detected a potential medical emergency and contacted emergency services (999). Please follow emergency operator instructions." :
-                            "This AI assistant provides general information only and is not a substitute for professional medical advice. In case of emergency, call 999 in Bangladesh."}
-                    </Text>
-                </Box>
-            </Card>
-            
-            {/* Quick questions panel */}
-            <Card>
-                <Heading as="h4" size="sm" mb={3}>
-                    Common Health Questions
-                </Heading>
+                    </MotionBox>
+                )}
                 
-                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
-                    {commonQuestions.map((question, index) => (
-                        <Button 
-                            key={index}
-                            size="sm"
-                            variant="outline"
-                            justifyContent="flex-start"
-                            onClick={() => handleQuickQuestion(question)}
-                            colorScheme="blue"
-                            whiteSpace="normal"
-                            height="auto"
-                            py={2}
-                            textAlign="left"
-                            isDisabled={isEmergencyMode}
+                {isEmergencyMode && (
+                    <MotionBox 
+                        variants={itemVariants}
+                        sx={isEmergencyCalling ? { 
+                            animation: `${pulseAnimation} 2s infinite`,
+                            transformOrigin: 'center'
+                        } : {}}
+                    >
+                        <Alert status="error" mb={6} borderRadius="xl" shadow="md">
+                            <AlertIcon as={FontAwesomeIcon} icon={faExclamationTriangle} />
+                            <Box flex="1">
+                                <AlertTitle>Emergency Mode Activated</AlertTitle>
+                                <AlertDescription>
+                                    Emergency services (999) in Bangladesh {isEmergencyCalling ? 'have been contacted' : 'will be contacted'} based on the symptoms described.
+                                </AlertDescription>
+                            </Box>
+                            <Button 
+                                colorScheme="red" 
+                                size="sm" 
+                                leftIcon={<FontAwesomeIcon icon={faPhone} />}
+                                borderRadius="lg"
+                            >
+                                {isEmergencyCalling ? 'Connected' : 'Calling 999'}
+                            </Button>
+                        </Alert>
+                    </MotionBox>
+                )}
+                
+                <MotionBox variants={itemVariants}>
+                    <Card 
+                        p={0} 
+                        mb={6} 
+                        boxShadow="xl" 
+                        borderRadius="2xl" 
+                        overflow="hidden"
+                        variant="elevated"
+                    >
+                        {/* Chat header */}
+                        <Box 
+                            bg={isEmergencyMode ? emergencyHeaderBgColor : headerBgColor} 
+                            p={4} 
+                            color="white"
+                            position="relative"
+                            overflow="hidden"
                         >
-                            {question}
-                        </Button>
-                    ))}
-                </SimpleGrid>
-            </Card>
+                            {/* Decorative shape for visual interest */}
+                            <Box
+                                position="absolute"
+                                right="-50px"
+                                top="-50px"
+                                width="200px"
+                                height="200px"
+                                borderRadius="full"
+                                bg="whiteAlpha.100"
+                            />
+                            <Box
+                                position="absolute"
+                                left="-30px"
+                                bottom="-60px"
+                                width="150px"
+                                height="150px"
+                                borderRadius="full"
+                                bg="whiteAlpha.50"
+                            />
+                            
+                            <Flex justifyContent="space-between" alignItems="center" zIndex="1" position="relative">
+                                <Box>
+                                    <Heading as="h3" size="md" fontWeight="bold">ZenHealth Assistant</Heading>
+                                    <Text fontSize="sm">Ask questions about health topics, medications, or using the app</Text>
+                                </Box>
+                                
+                                <HStack spacing={2}>
+                                    {isEmergencyMode && (
+                                        <Badge 
+                                            colorScheme="red" 
+                                            p={2} 
+                                            borderRadius="full"
+                                            boxShadow="md"
+                                        >
+                                            <HStack spacing={1}>
+                                                <FontAwesomeIcon icon={faExclamationTriangle} />
+                                                <Text>Emergency Mode</Text>
+                                            </HStack>
+                                        </Badge>
+                                    )}
+                                
+                                    {isSymptomMode && !isEmergencyMode && (
+                                        <Badge 
+                                            colorScheme="purple" 
+                                            p={2} 
+                                            borderRadius="full"
+                                            boxShadow="md"
+                                        >
+                                            <HStack spacing={1}>
+                                                <FontAwesomeIcon icon={faNotesMedical} />
+                                                <Text>Symptom Mode</Text>
+                                            </HStack>
+                                        </Badge>
+                                    )}
+                                </HStack>
+                            </Flex>
+                        </Box>
+                        
+                        {/* Messages container */}
+                        <Box 
+                            p={4} 
+                            height={{ base: "450px", md: "550px" }} 
+                            overflowY="auto" 
+                            bg={secondaryBgColor}
+                            css={{
+                                '&::-webkit-scrollbar': {
+                                  width: '8px',
+                                },
+                                '&::-webkit-scrollbar-track': {
+                                  width: '10px',
+                                  background: useColorModeValue('rgba(0,0,0,0.05)', 'rgba(255,255,255,0.05)')
+                                },
+                                '&::-webkit-scrollbar-thumb': {
+                                  background: useColorModeValue('rgba(0,0,0,0.2)', 'rgba(255,255,255,0.2)'),
+                                  borderRadius: '24px',
+                                },
+                              }}
+                        >
+                            <MotionVStack 
+                                spacing={4} 
+                                align="stretch"
+                                variants={containerVariants}
+                                initial="hidden"
+                                animate="visible"
+                            >
+                                {messages.map(message => (
+                                    <MotionFlex
+                                        key={message.id}
+                                        justify={message.sender === 'user' ? 'flex-end' : 'flex-start'}
+                                        variants={itemVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        layout
+                                    >
+                                        {/* Typing indicator or regular message */}
+                                        {message.isTyping ? (
+                                            <Flex
+                                                maxWidth="80%"
+                                                bg={bgColor}
+                                                p={4}
+                                                borderRadius="2xl"
+                                                boxShadow="md"
+                                                direction="column"
+                                                borderWidth="1px"
+                                                borderColor={borderColor}
+                                            >
+                                                <HStack spacing={2} mb={2}>
+                                                    <Avatar
+                                                        size="sm"
+                                                        bg="green.100"
+                                                        icon={
+                                                            <FontAwesomeIcon 
+                                                                icon={faRobot} 
+                                                                color="green.500"
+                                                            />
+                                                        }
+                                                    />
+                                                    <Text fontWeight="bold" fontSize="sm">
+                                                        ZenHealth Assistant
+                                                    </Text>
+                                                </HStack>
+                                                <Flex align="center">
+                                                    <Box sx={{ 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        gap: '3px'
+                                                    }}>
+                                                        {[0, 1, 2].map((dot) => (
+                                                            <Box 
+                                                                key={dot}
+                                                                w="8px" 
+                                                                h="8px" 
+                                                                borderRadius="full" 
+                                                                bg="blue.400"
+                                                                sx={{ 
+                                                                    animation: `${typingAnimation} 1s infinite ${dot * 0.2}s` 
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </Box>
+                                                    <Text ml={2} color={dimmedTextColor}>Thinking...</Text>
+                                                </Flex>
+                                            </Flex>
+                                        ) : (
+                                            <Flex
+                                                maxWidth="80%"
+                                                bg={message.sender === 'user' ? 'blue.500' : 
+                                                   message.isEmergency ? useColorModeValue('red.50', 'red.900') :
+                                                   message.isSymptomAnalysis ? useColorModeValue('purple.50', 'purple.900') : 
+                                                   message.isError ? useColorModeValue('red.50', 'red.900') : bgColor}
+                                                color={message.sender === 'user' ? 'white' : 
+                                                      message.isEmergency ? useColorModeValue('red.800', 'red.100') :
+                                                      message.isError ? useColorModeValue('red.800', 'red.100') : textColor}
+                                                p={4}
+                                                borderRadius="2xl"
+                                                boxShadow="md"
+                                                direction="column"
+                                                borderColor={message.isEmergency ? useColorModeValue('red.300', 'red.700') :
+                                                            message.isSymptomAnalysis ? useColorModeValue('purple.200', 'purple.700') : borderColor}
+                                                borderWidth="1px"
+                                                className={message.sender === 'bot' ? 'ai-response' : ''}
+                                                transition="all 0.3s ease"
+                                                _hover={{
+                                                    boxShadow: "lg",
+                                                    transform: "translateY(-2px)"
+                                                }}
+                                            >
+                                                <HStack spacing={2} mb={2}>
+                                                    <Avatar
+                                                        size="sm"
+                                                        bg={message.sender === 'user' ? 'blue.300' : 
+                                                           message.isEmergency ? useColorModeValue('red.100', 'red.800') :
+                                                           message.isSymptomAnalysis ? useColorModeValue('purple.100', 'purple.800') : 
+                                                           message.isError ? useColorModeValue('red.100', 'red.800') : useColorModeValue('green.100', 'green.800')}
+                                                        icon={
+                                                            <FontAwesomeIcon 
+                                                                icon={message.sender === 'user' ? faUser : 
+                                                                     message.isEmergency ? faExclamationTriangle :
+                                                                     message.isSymptomAnalysis ? faNotesMedical : faRobot} 
+                                                                color={message.sender === 'user' ? 'white' : 
+                                                                      message.isEmergency ? useColorModeValue('red.500', 'red.200') :
+                                                                      message.isSymptomAnalysis ? useColorModeValue('purple.500', 'purple.200') : 
+                                                                      message.isError ? useColorModeValue('red.500', 'red.200') : useColorModeValue('green.500', 'green.200')}
+                                                            />
+                                                        }
+                                                    />
+                                                    <Text fontWeight="bold" fontSize="md">
+                                                        {message.sender === 'user' ? 'You' : 'ZenHealth Assistant'}
+                                                        {message.isEmergency && (
+                                                            <Badge ml={1} colorScheme="red">Emergency Alert</Badge>
+                                                        )}
+                                                        {message.isSymptomAnalysis && !message.isEmergency && (
+                                                            <Badge ml={1} colorScheme="purple">Symptom Analysis</Badge>
+                                                        )}
+                                                        {message.hasCode && (
+                                                            <Badge ml={1} colorScheme="green">Code</Badge>
+                                                        )}
+                                                    </Text>
+                                                </HStack>
+                                                
+                                                {/* Use our formatted text for bot messages */}
+                                                {message.sender === 'bot' && message.formattedText ? (
+                                                    <Box 
+                                                        className="ai-response-content"
+                                                        dangerouslySetInnerHTML={{ __html: message.formattedText }}
+                                                        sx={{
+                                                            "& > p": {
+                                                                mb: 2
+                                                            },
+                                                            "& a": {
+                                                                color: "blue.500",
+                                                                _hover: {
+                                                                    textDecoration: "underline"
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Text whiteSpace="pre-wrap">{message.text}</Text>
+                                                )}
+                                                
+                                                <Text 
+                                                    alignSelf="flex-end" 
+                                                    fontSize="xs" 
+                                                    color={message.sender === 'user' ? 'blue.100' : 
+                                                          message.isEmergency ? useColorModeValue('red.300', 'red.400') :
+                                                          message.isSymptomAnalysis ? useColorModeValue('purple.300', 'purple.400') : 
+                                                          message.isError ? useColorModeValue('red.300', 'red.400') : dimmedTextColor}
+                                                    mt={2}
+                                                >
+                                                    {message.timestamp}
+                                                </Text>
+                                            </Flex>
+                                        )}
+                                    </MotionFlex>
+                                ))}
+                                <div ref={messagesEndRef} />
+                            </MotionVStack>
+                        </Box>
+                        
+                        {/* Input area */}
+                        <Box p={4} bg={bgColor} borderTop="1px" borderColor={borderColor}>
+                            {/* Symptom examples */}
+                            {messages.length <= 5 && !isEmergencyMode && (
+                                <MotionBox 
+                                    mb={3}
+                                    variants={itemVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                >
+                                    <Text fontSize="xs" color="purple.600" mb={1} fontWeight="medium">
+                                        <FontAwesomeIcon icon={faNotesMedical} /> Try asking about symptoms:
+                                    </Text>
+                                    <HStack spacing={2} mt={1} flexWrap="wrap">
+                                        <Badge 
+                                            colorScheme="purple" 
+                                            variant="outline" 
+                                            py={1} px={3} 
+                                            cursor="pointer"
+                                            _hover={{ bg: useColorModeValue('purple.50', 'purple.900'), transform: 'translateY(-1px)' }}
+                                            borderRadius="full"
+                                            transition="all 0.2s"
+                                            onClick={() => handleSymptomQuestion("I've been having severe headaches and dizziness for 3 days")}
+                                        >
+                                            I have headaches and dizziness
+                                        </Badge>
+                                        <Badge 
+                                            colorScheme="purple" 
+                                            variant="outline" 
+                                            py={1} px={3} 
+                                            cursor="pointer"
+                                            _hover={{ bg: useColorModeValue('purple.50', 'purple.900'), transform: 'translateY(-1px)' }}
+                                            borderRadius="full"
+                                            transition="all 0.2s"
+                                            onClick={() => handleSymptomQuestion("What might cause a persistent cough and fever?")}
+                                        >
+                                            What causes cough and fever?
+                                        </Badge>
+                                        <Badge 
+                                            colorScheme="red" 
+                                            variant="outline" 
+                                            py={1} px={3} 
+                                            cursor="pointer"
+                                            _hover={{ bg: useColorModeValue('red.50', 'red.900'), transform: 'translateY(-1px)' }}
+                                            borderRadius="full"
+                                            transition="all 0.2s"
+                                            onClick={() => handleSymptomQuestion("I'm having severe chest pain and shortness of breath")}
+                                        >
+                                            Chest pain and shortness of breath
+                                        </Badge>
+                                    </HStack>
+                                </MotionBox>
+                            )}
+                            
+                            {isEmergencyMode && (
+                                <Alert status="error" mb={3} borderRadius="xl" fontSize="sm">
+                                    <AlertIcon as={FontAwesomeIcon} icon={faPhone} />
+                                    <Box>
+                                        <AlertTitle fontSize="sm">Emergency Services Active</AlertTitle>
+                                        <AlertDescription fontSize="xs">
+                                            Emergency services (999) have been contacted. Please provide your location and stay on the line.
+                                        </AlertDescription>
+                                    </Box>
+                                </Alert>
+                            )}
+                            
+                            <Flex mt={3}>
+                                <Input
+                                    value={newMessage}
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    onKeyPress={handleKeyPress}
+                                    placeholder={isEmergencyMode ? "Describe your location..." : "Type your message..."}
+                                    mr={2}
+                                    flex="1"
+                                    focusBorderColor={isEmergencyMode ? "red.400" : 
+                                                     isSymptomMode ? "purple.400" : "blue.400"}
+                                    disabled={isLoading}
+                                    size="lg"
+                                    borderRadius="full"
+                                    _focus={{
+                                        boxShadow: "outline",
+                                        borderColor: isEmergencyMode ? "red.400" : 
+                                                   isSymptomMode ? "purple.400" : "blue.400",
+                                    }}
+                                    transition="all 0.3s ease"
+                                />
+                                
+                                <Button
+                                    colorScheme={isEmergencyMode ? "red" : 
+                                               isSymptomMode ? "purple" : "blue"}
+                                    onClick={handleSendMessage}
+                                    leftIcon={<FontAwesomeIcon icon={isEmergencyMode ? faPhone : 
+                                                                  isSymptomMode ? faNotesMedical : faPaperPlane} />}
+                                    isLoading={isLoading}
+                                    loadingText="Sending"
+                                    size="lg"
+                                    borderRadius="full"
+                                    minW="120px"
+                                    boxShadow="md"
+                                    _hover={{
+                                        transform: "translateY(-2px)",
+                                        boxShadow: "lg"
+                                    }}
+                                    _active={{
+                                        transform: "translateY(0)",
+                                        boxShadow: "md"
+                                    }}
+                                    transition="all 0.2s"
+                                >
+                                    {isEmergencyMode ? "Send Location" : "Send"}
+                                </Button>
+                            </Flex>
+                            
+                            {/* Bottom disclaimer */}
+                            <Text fontSize="xs" color={dimmedTextColor} mt={3} textAlign="center">
+                                {isEmergencyMode ? 
+                                    "This AI assistant has detected a potential medical emergency and contacted emergency services (999). Please follow emergency operator instructions." :
+                                    "This AI assistant provides general information only and is not a substitute for professional medical advice. In case of emergency, call 999 in Bangladesh."}
+                            </Text>
+                        </Box>
+                    </Card>
+                </MotionBox>
+                
+                {/* Quick questions panel */}
+                <MotionBox variants={itemVariants}>
+                    <Card 
+                        title="Common Health Questions"
+                        variant="soft"
+                        isHoverable
+                    >
+                        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
+                            {commonQuestions.map((question, index) => (
+                                <Button 
+                                    key={index}
+                                    size="md"
+                                    variant="outline"
+                                    justifyContent="flex-start"
+                                    onClick={() => handleQuickQuestion(question)}
+                                    colorScheme="blue"
+                                    whiteSpace="normal"
+                                    height="auto"
+                                    py={3}
+                                    px={4}
+                                    textAlign="left"
+                                    isDisabled={isEmergencyMode}
+                                    borderRadius="xl"
+                                    transition="all 0.2s"
+                                    _hover={{
+                                        bg: useColorModeValue('blue.50', 'blue.900'),
+                                        transform: "translateY(-2px)",
+                                        boxShadow: "md"
+                                    }}
+                                >
+                                    {question}
+                                </Button>
+                            ))}
+                        </SimpleGrid>
+                    </Card>
+                </MotionBox>
+            </MotionBox>
             
             {/* API Key Modal */}
-            <Modal isOpen={isOpen} onClose={onClose}>
-                <ModalOverlay />
-                <ModalContent>
+            <Modal isOpen={isOpen} onClose={onClose} isCentered>
+                <ModalOverlay backdropFilter="blur(4px)" />
+                <ModalContent borderRadius="xl">
                     <ModalHeader>Configure Gemini API Key</ModalHeader>
                     <ModalCloseButton />
                     <ModalBody>
@@ -742,18 +882,19 @@ const Chat = () => {
                                 value={apiKey}
                                 onChange={(e) => setApiKey(e.target.value)}
                                 placeholder="Enter your Gemini API key"
+                                borderRadius="lg"
                             />
                         </FormControl>
                     </ModalBody>
                     <ModalFooter>
-                        <Button colorScheme="blue" mr={3} onClick={handleApiKeySubmit}>
+                        <Button colorScheme="blue" mr={3} onClick={handleApiKeySubmit} borderRadius="lg">
                             Save Key
                         </Button>
-                        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                        <Button variant="ghost" onClick={onClose} borderRadius="lg">Cancel</Button>
                     </ModalFooter>
                 </ModalContent>
             </Modal>
-        </>
+        </Container>
     );
 };
 
